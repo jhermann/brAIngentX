@@ -6,6 +6,7 @@ license: Apache 2.0
 > *Skills sharing for an agentic age.*
 
 **Contents**
+
 - [🚀 Project Overview](#-project-overview)
 - [📋 What Skills are Supported?](#-what-skills-are-supported)
 - [⚙️ How Does it Work?](#️-how-does-it-work)
@@ -25,10 +26,15 @@ mean it won't work with other common IDEs and models.
 
 ## 📋 What Skills are Supported?
 
-These skills are part of this repository, and you can choose which of those are useful to you,
-or a per-project basis.
 
-- An expert helping you to create and maintain an `AGENTS.md` file.
+The following skills are included in this repository. You can enable or use them as needed, on a per-project basis:
+
+- 🏛️ **markdown-style**: Markdown Style Standards
+- 🛠️ **pylint-qa**: Performs static code analysis and PEP 8 validation on Python files. Returns a quality score and a list of specific violations (Errors, Warnings, Conventions).
+- 🏛️ **python-style**: Python Coding Style Standards
+- 🏛️ **python-tests**: Pytest Testing Standards
+- 🏛️ **secure-development**
+- 🚧 An expert helping you to create and maintain an `AGENTS.md` file.
 
 ## ⚙️ How Does it Work?
 
