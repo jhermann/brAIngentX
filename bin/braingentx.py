@@ -48,7 +48,20 @@
     The project-local configuration is stored in a "braingentx.ini" file
     in the ".agents/skills" directory of the project.
 
+    Any action changing local paths in the project (install, uninstall, restore, purge)
+    will update the local configuration accordingly. Those actions will NEVER act on real
+    physical files or directories, only on symlinks.
+
     The script refuses any action on its own repo, except `list`, `show`, and `info`.
+
+    The `list` action includes available metadata like a frontmatter `description` or
+    a H1 Markdown title.
+
+    `show` pipes longer output through `less -R` if available. The environment variable
+    `BRAINGENTX_PAGER` or `PAGER` are used when set, and parsed using `shlex.split`.
+
+    Copilot instructions are also supported (in `.github/instructions/*.instructions.md`)
+    and treated like skills. Skills are marked with 🛠️ and instructions with 🏛️.
 
     ----
     This script should not require any special OS or Python packages except the ones listed here:
@@ -79,7 +92,6 @@ from __future__ import annotations
 
 import os
 import sys
-import shutil
 import platform
 import argparse
 import configparser
@@ -95,10 +107,14 @@ except ImportError as exc:
           "    pip install --user pick", file=sys.stderr)
     sys.exit(1)
 
+
 PROJECT_SKILLS_DIR = Path(".agents") / "skills"
-PROJECT_CONFIG_FILE = PROJECT_SKILLS_DIR / "braingentx.ini"
-SKILLS_DIR_NAME = "skills"
+PROJECT_CONFIG_FILE = Path(".agents") / "braingentx.ini"
+PROJECT_INSTRUCTIONS_DIR = Path(".github") / "instructions"
 SKILL_DOC_NAME = "SKILL.md"
+INSTRUCTION_DOC_SUFFIX = ".instructions.md"
+INFO_DESCR_MAXLEN = 88
+PAGER_DEFAULT = ["less", "-R"]
 
 
 def log_info(message: str) -> None:
@@ -116,30 +132,56 @@ class ProjectConfig:
     schema_version: int = 1
 
 
+@dataclass(frozen=True)
+class InstallableItem:
+    name: str
+    kind: str
+    source: Path
+
+    @property
+    def marker(self) -> str:
+        return "🛠️" if self.kind == "skill" else "🏛️"
+
+    @property
+    def doc_path(self) -> Path:
+        if self.kind == "skill":
+            return self.source / SKILL_DOC_NAME
+        return self.source
+
+
 class BrainGentX:
     def __init__(self, repo_root: Path, project_root: Path, dry_run: bool = False) -> None:
         self.repo_root = repo_root
         self.project_root = project_root
         self.dry_run = dry_run
-        self.skills_root = self.repo_root / SKILLS_DIR_NAME
         self.project_skills_root = self.project_root / PROJECT_SKILLS_DIR
+        self.project_instructions_root = self.project_root / PROJECT_INSTRUCTIONS_DIR
         self.project_config_path = self._resolve_project_config_path()
 
     def _resolve_project_config_path(self) -> Path:
         return self.project_root / PROJECT_CONFIG_FILE
 
-    def available_skills(self) -> dict[str, Path]:
-        skills: dict[str, Path] = {}
-        if not self.skills_root.is_dir():
-            return skills
+    def available_skills(self) -> dict[str, InstallableItem]:
+        items: dict[str, InstallableItem] = {}
+        skills_root = self.repo_root / PROJECT_SKILLS_DIR
+        instructions_root = self.repo_root / PROJECT_INSTRUCTIONS_DIR
 
-        for entry in sorted(self.skills_root.iterdir()):
-            if not entry.is_dir():
-                continue
-            if (entry / SKILL_DOC_NAME).is_file():
-                skills[entry.name] = entry
+        if skills_root.is_dir():
+            for entry in sorted(skills_root.iterdir()):
+                if not entry.is_dir():
+                    continue
+                if (entry / SKILL_DOC_NAME).is_file():
+                    items[entry.name] = InstallableItem(name=entry.name, kind="skill", source=entry)
 
-        return skills
+        if instructions_root.is_dir():
+            for entry in sorted(instructions_root.iterdir()):
+                if not entry.is_file() or not entry.name.endswith(INSTRUCTION_DOC_SUFFIX):
+                    continue
+
+                name = entry.name.removesuffix(INSTRUCTION_DOC_SUFFIX)
+                items[name] = InstallableItem(name=name, kind="instruction", source=entry)
+
+        return items
 
     def load_project_config(self) -> ProjectConfig:
         if not self.project_config_path.exists():
@@ -200,31 +242,108 @@ class BrainGentX:
         return sorted(name for name, _ in selected)
 
     def cmd_list(self) -> int:
+        import re
+        import io
+        try:
+            import yaml
+        except ImportError:
+            yaml = None
+
         available = self.available_skills()
         installed = self._installed_in_project()
+        repo_skills_root = self.repo_root / PROJECT_SKILLS_DIR
+        repo_instructions_root = self.repo_root / PROJECT_INSTRUCTIONS_DIR
 
         if not available:
-            log_info(f"No skills found in repository: {self.skills_root}")
+            log_info(
+                "No skills or instructions found in repository: "
+                f"{repo_skills_root} or {repo_instructions_root}"
+            )
             return 0
 
-        print("Available skills:")
+        def extract_metadata(doc_path: Path) -> str:
+            try:
+                with doc_path.open("r", encoding="utf-8") as f:
+                    lines = [next(f) for _ in range(30)]
+            except (OSError, StopIteration):
+                return ""
+            text = "".join(lines)
+            # Try YAML frontmatter
+            if text.startswith("---"):
+                end = text.find("---", 3)
+                if end != -1:
+                    yaml_block = text[3:end]
+                    if yaml is not None:
+                        try:
+                            meta = yaml.safe_load(yaml_block)
+                            desc = meta.get("description")
+                            if desc:
+                                return str(desc).strip()
+                        except Exception:
+                            pass
+            # Try Markdown H1
+            for line in lines:
+                m = re.match(r"# (.+)", line)
+                if m:
+                    return m.group(1).strip()
+            return ""
+
+        def truncate(text: str, maxlen: int = INFO_DESCR_MAXLEN) -> str:
+            if len(text) > maxlen:
+                return text[:maxlen - 3].rstrip() + "..."
+            return text
+
+        heading = "Available skills (🛠️) and instructions (🏛️)"
+        print(heading)
+        print("‾" * len(heading))
+        CYAN = "\033[96;1m"
+        RESET = "\033[0m"
         for name in sorted(available):
-            marker = "installed" if name in installed else "not installed"
-            print(f"  - {name}: {marker}")
+            item = available[name]
+            state_marker = "✅" if name in installed else "❌"
+            meta = extract_metadata(item.doc_path)
+            colored_name = f"{CYAN}{truncate(name)}{RESET}"
+            if meta:
+                print(f"  - {item.marker} {state_marker} {colored_name}: {truncate(meta)}")
+            else:
+                print(f"  - {item.marker} {state_marker} {colored_name}")
 
         return 0
 
     def cmd_show(self, name: str) -> int:
+        import subprocess
+        import shlex
+        from io import StringIO
+
         available = self.available_skills()
         if name not in available:
             raise RuntimeError(f"unknown skill '{name}'")
 
-        skill_dir = available[name]
-        doc = skill_dir / SKILL_DOC_NAME
-        print(f"Name: {name}")
-        print(f"Path: {skill_dir}")
-        print("---")
-        print(doc.read_text(encoding="utf-8").strip())
+        item = available[name]
+        doc = item.doc_path
+        output = StringIO()
+        print(f"Name: {name}", file=output)
+        print(f"Type: {item.kind}", file=output)
+        print(f"Path: {item.source}", file=output)
+        print("---", file=output)
+        doc_text = doc.read_text(encoding="utf-8").strip()
+        print(doc_text, file=output)
+        value = output.getvalue()
+        lines = value.splitlines()
+        if len(lines) > 33:
+            pager = os.environ.get("BRAINGENTX_PAGER") or os.environ.get("PAGER")
+            if pager:
+                pager_cmd = shlex.split(pager)
+            else:
+                pager_cmd = PAGER_DEFAULT
+            try:
+                proc = subprocess.Popen(pager_cmd, stdin=subprocess.PIPE)
+                proc.communicate(input=value.encode("utf-8"))
+            except Exception as e:
+                print(value)
+                print(f"[Warning] Could not pipe to pager: {e}", file=sys.stderr)
+        else:
+            print(value)
         return 0
 
     def cmd_install(self, names: list[str], pick: bool) -> int:
@@ -240,10 +359,10 @@ class BrainGentX:
             if name not in available:
                 raise RuntimeError(f"unknown skill '{name}'")
             self._install_skill(name, available[name])
+            project_config.installed = sorted(set(project_config.installed).union([name]))
+            project_config.repo_root = str(self.repo_root)
+            self.save_project_config(project_config)
 
-        project_config.installed = sorted(set(project_config.installed).union(selected))
-        project_config.repo_root = str(self.repo_root)
-        self.save_project_config(project_config)
         return 0
 
     def cmd_uninstall(self, names: list[str], pick: bool) -> int:
@@ -255,9 +374,13 @@ class BrainGentX:
 
         for name in selected:
             self._uninstall_skill(name)
+            project_config.installed = [
+                configured_name
+                for configured_name in project_config.installed
+                if configured_name != name
+            ]
+            self.save_project_config(project_config)
 
-        project_config.installed = [name for name in project_config.installed if name not in set(selected)]
-        self.save_project_config(project_config)
         return 0
 
     def cmd_restore(self) -> int:
@@ -303,7 +426,8 @@ class BrainGentX:
 
     def cmd_info(self) -> int:
         project_config = self.load_project_config()
-        available = sorted(self.available_skills())
+        available = self.available_skills()
+        available_names = sorted(available)
         installed = sorted(self._installed_in_project())
         configured = sorted(set(project_config.installed))
         repo_env = os.environ.get("BRAINGENTX_REPO")
@@ -333,15 +457,20 @@ class BrainGentX:
         info("Repo Env Override:", repo_env or "(BRAINGENTX_REPO is unset)")
         info("Configured Repo Root:", project_config.repo_root)
 
-        info("Repo Root:", with_exists_marker(self.repo_root.resolve(), self.repo_root.is_dir()))
-        info("Skills Root:", with_exists_marker(self.skills_root, self.skills_root.is_dir()))
-        info(
-            "Project Skills Root:",
-            with_exists_marker(self.project_skills_root, self.project_skills_root.is_dir()),
-        )
+        info("Master Root:", with_exists_marker(self.repo_root.resolve(), self.repo_root.is_dir()))
         info("Project Root:", with_exists_marker(self.project_root.resolve(), self.project_root.is_dir()))
+        info("Skills Folder:",
+             with_exists_marker(self.project_skills_root, self.project_skills_root.is_dir())
+        )
+        info(
+            "Instructions Folder:",
+            with_exists_marker(self.project_instructions_root, self.project_instructions_root.is_dir())
+        )
 
-        info("Available Skills:", f"{len(available)} | {', '.join(available) if available else '(none)'}")
+        info(
+            "Available Entries:",
+            f"{len(available_names)} | {', '.join(f'{available[name].marker} {name}' for name in available_names) if available_names else '(none)'}",
+        )
         info("Configured Skills:", f"{len(configured)} | {', '.join(configured) if configured else '(none)'}")
         info("Installed Skills:", f"{len(installed)} | {', '.join(installed) if installed else '(none)'}")
         info("Dry Run:", bool_marker(self.dry_run))
@@ -354,38 +483,62 @@ class BrainGentX:
         return 0
 
     def _installed_in_project(self) -> set[str]:
-        if not self.project_skills_root.is_dir():
-            return set()
-
         installed: set[str] = set()
-        for entry in self.project_skills_root.iterdir():
-            if entry.is_symlink() or entry.is_dir():
-                installed.add(entry.name)
+
+        # Determine if we are in the master repo
+        in_master_repo = self.project_root.resolve() == self.repo_root.resolve()
+
+        if self.project_skills_root.is_dir():
+            for entry in self.project_skills_root.iterdir():
+                if in_master_repo:
+                    # Accept both symlinks and real directories
+                    if entry.is_symlink() or entry.is_dir():
+                        installed.add(entry.name)
+                else:
+                    if entry.is_symlink():
+                        installed.add(entry.name)
+
+        if self.project_instructions_root.is_dir():
+            for entry in self.project_instructions_root.iterdir():
+                if in_master_repo:
+                    if (entry.is_symlink() or entry.is_file()) and entry.name.endswith(INSTRUCTION_DOC_SUFFIX):
+                        installed.add(entry.name.removesuffix(INSTRUCTION_DOC_SUFFIX))
+                else:
+                    if entry.is_symlink() and entry.name.endswith(INSTRUCTION_DOC_SUFFIX):
+                        installed.add(entry.name.removesuffix(INSTRUCTION_DOC_SUFFIX))
+
         return installed
 
-    def _install_skill(self, name: str, source: Path) -> None:
-        target = self.project_skills_root / name
-        if target.exists() or target.is_symlink():
+    def _install_skill(self, name: str, item: InstallableItem) -> None:
+        target = self._project_target(item)
+        if target.is_symlink():
             log_info(f"Replacing existing skill link '{name}'")
             if not self.dry_run:
                 self._remove_path(target)
+        elif target.exists():
+            raise RuntimeError(
+                f"refusing to replace physical path '{target}'; only symlinks can be managed"
+            )
 
         if self.dry_run:
-            log_info(f"[dry-run] Would install '{name}' -> {source}")
+            log_info(f"[dry-run] Would install '{name}' -> {item.source}")
             return
 
-        self.project_skills_root.mkdir(parents=True, exist_ok=True)
+        target.parent.mkdir(parents=True, exist_ok=True)
         try:
-            os.symlink(source, target, target_is_directory=True)
+            os.symlink(item.source, target, target_is_directory=item.kind == "skill")
             log_info(f"Installed '{name}'")
-        except OSError:
-            # Fallback for systems where symlinks are unavailable.
-            shutil.copytree(source, target)
-            log_info(f"Installed '{name}' (copied)")
+        except OSError as exc:
+            raise RuntimeError(f"failed to create symlink '{target}': {exc}") from exc
 
     def _uninstall_skill(self, name: str) -> None:
-        target = self.project_skills_root / name
-        if not (target.exists() or target.is_symlink()):
+        targets = [
+            self.project_skills_root / name,
+            self.project_instructions_root / f"{name}{INSTRUCTION_DOC_SUFFIX}",
+        ]
+        installed_targets = [target for target in targets if target.is_symlink()]
+
+        if not installed_targets:
             log_info(f"Skill '{name}' is not installed")
             return
 
@@ -393,14 +546,20 @@ class BrainGentX:
             log_info(f"[dry-run] Would uninstall '{name}'")
             return
 
-        self._remove_path(target)
+        for target in installed_targets:
+            self._remove_path(target)
         log_info(f"Uninstalled '{name}'")
 
+    def _project_target(self, item: InstallableItem) -> Path:
+        if item.kind == "skill":
+            return self.project_skills_root / item.name
+        return self.project_instructions_root / f"{item.name}{INSTRUCTION_DOC_SUFFIX}"
+
     def _remove_path(self, path: Path) -> None:
-        if path.is_symlink() or path.is_file():
-            path.unlink()
-            return
-        shutil.rmtree(path)
+        if not path.is_symlink():
+            raise RuntimeError(f"refusing to remove physical path '{path}'")
+
+        path.unlink()
 
 
 def detect_repo_root() -> Path:
@@ -420,7 +579,9 @@ def build_parser() -> argparse.ArgumentParser:
     install_parser.add_argument("-p", "--pick", action="store_true", help="Interactively pick skills")
     install_parser.add_argument("skills", nargs="*", help="Names of skills to install")
 
-    subparsers.add_parser("list", help="List available skills")
+    subparsers.add_parser("list",
+        help="List available skills and instructions,"
+             " and their installation status in the project")
 
     show_parser = subparsers.add_parser("show", help="Show details for one skill")
     show_parser.add_argument("skill", help="Name of the skill")
