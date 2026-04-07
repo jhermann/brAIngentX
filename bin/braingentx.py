@@ -17,7 +17,7 @@
         Show what would be done, but don't actually do it.
 
     --p, --pick
-        Interactively pick skills to install or uninstall.
+        Interactively pick skills or instructions to install or uninstall.
 
     ```bash
     # Install skills from this repository into the project
@@ -127,7 +127,6 @@ def log_error(message: str) -> None:
 
 @dataclass
 class ProjectConfig:
-    repo_root: str
     installed: list[str]
     schema_version: int = 1
 
@@ -185,7 +184,7 @@ class BrainGentX:
 
     def load_project_config(self) -> ProjectConfig:
         if not self.project_config_path.exists():
-            return ProjectConfig(repo_root=str(self.repo_root), installed=[])
+            return ProjectConfig(installed=[])
 
         parser = configparser.ConfigParser()
         try:
@@ -195,17 +194,15 @@ class BrainGentX:
             raise RuntimeError(f"invalid INI project config in {self.project_config_path}: {exc}") from exc
 
         section = "braingentx"
-        repo_root = parser.get(section, "repo_root", fallback=str(self.repo_root))
         installed_text = parser.get(section, "installed", fallback="")
         installed = [item.strip() for item in installed_text.split(",") if item.strip()]
 
-        return ProjectConfig(repo_root=repo_root, installed=sorted(set(installed)))
+        return ProjectConfig(installed=sorted(set(installed)))
 
     def save_project_config(self, project_config: ProjectConfig) -> None:
         parser = configparser.ConfigParser()
         parser["braingentx"] = {
             "schema_version": "1",
-            "repo_root": project_config.repo_root,
             "installed": ", ".join(sorted(set(project_config.installed))),
         }
         if self.dry_run:
@@ -216,14 +213,33 @@ class BrainGentX:
         with self.project_config_path.open("w", encoding="utf-8") as handle:
             parser.write(handle)
 
+
     def resolve_install_names(self, names: Iterable[str] | None, pick: bool, action: str) -> list[str]:
         available = self.available_skills()
         project_config = self.load_project_config()
 
+        def marker_label(name: str) -> str:
+            item = available.get(name)
+            if item:
+                return f"{item.marker} {name}"
+            return name
+
         if pick:
+            pick_usage = (
+                " • Ctrl-C = abort"
+                " • Space = Multi-select"
+                " • Enter = confirm"
+            )
             if action == "install":
-                return self._pick_from_list(sorted(available), "Pick skills to install")
-            return self._pick_from_list(sorted(project_config.installed), "Pick skills to uninstall")
+                not_installed = sorted([name for name in available if name not in project_config.installed])
+                pick_options = [marker_label(name) for name in not_installed]
+                picked = self._pick_from_list(pick_options, "Pick skills or instructions to install" + pick_usage)
+                # Map back to canonical names
+                return [name.split(' ', 1)[1] if ' ' in name else name for name in picked]
+            # For uninstall, show markers for installed
+            pick_options = [marker_label(name) for name in sorted(project_config.installed)]
+            picked = self._pick_from_list(pick_options, "Pick skills or instructions to uninstall" + pick_usage)
+            return [name.split(' ', 1)[1] if ' ' in name else name for name in picked]
 
         selected = sorted(set(names or []))
         if not selected:
@@ -354,13 +370,17 @@ class BrainGentX:
 
         available = self.available_skills()
         project_config = self.load_project_config()
+        # Remove already installed names
+        to_install = [name for name in selected if name not in project_config.installed]
+        if not to_install:
+            log_info("All selected skills are already installed.")
+            return 0
 
-        for name in selected:
+        for name in to_install:
             if name not in available:
                 raise RuntimeError(f"unknown skill '{name}'")
             self._install_skill(name, available[name])
             project_config.installed = sorted(set(project_config.installed).union([name]))
-            project_config.repo_root = str(self.repo_root)
             self.save_project_config(project_config)
 
         return 0
@@ -413,11 +433,10 @@ class BrainGentX:
 
         if self.dry_run:
             log_info(
-                "[dry-run] Would create default project config with "
-                f"repo_root='{self.repo_root}' and no installed skills"
+                "[dry-run] Would create default project config with no installed skills"
             )
 
-        self.save_project_config(ProjectConfig(repo_root=str(self.repo_root), installed=[]))
+        self.save_project_config(ProjectConfig(installed=[]))
 
         if not self.dry_run:
             log_info(f"Created default project config: {self.project_config_path}")
@@ -576,7 +595,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     install_parser = subparsers.add_parser("install", help="Install skills into the project")
-    install_parser.add_argument("-p", "--pick", action="store_true", help="Interactively pick skills")
+    install_parser.add_argument("-p", "--pick", action="store_true", help="Interactively pick skills or instructions")
     install_parser.add_argument("skills", nargs="*", help="Names of skills to install")
 
     subparsers.add_parser("list",
@@ -587,7 +606,7 @@ def build_parser() -> argparse.ArgumentParser:
     show_parser.add_argument("skill", help="Name of the skill")
 
     uninstall_parser = subparsers.add_parser("uninstall", help="Uninstall skills from the project")
-    uninstall_parser.add_argument("-p", "--pick", action="store_true", help="Interactively pick skills")
+    uninstall_parser.add_argument("-p", "--pick", action="store_true", help="Interactively pick skills or instructions")
     uninstall_parser.add_argument("skills", nargs="*", help="Names of skills to uninstall")
 
     subparsers.add_parser("restore", help="Reconcile installed skills with local project config")
