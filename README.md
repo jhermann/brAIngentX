@@ -8,7 +8,7 @@ license: Apache 2.0
 **Contents**
 - [🚀 Project Overview](#-project-overview)
 - [📋 What Skills are Supported?](#-what-skills-are-supported)
-- [How Does it Work?](#how-does-it-work)
+- [⚙️ How Does it Work?](#️-how-does-it-work)
 
 ## 🚀 Project Overview
 *brAIngentX* is focused on **Agentic AI**, where autonomous scripts manage tasks
@@ -30,6 +30,6 @@ or a per-project basis.
 
 - An expert helping you to create and maintain an `AGENTS.md` file.
 
-## How Does it Work?
+## ⚙️ How Does it Work?
 
 🚧 TODO
