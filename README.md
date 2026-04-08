@@ -39,7 +39,7 @@ The following skills are included in this repository. You can enable or use them
 
 ## 🚀 How Do I Use This?
 
-To the repository you want to use the skills in, add this to your README or some other document with setup instructions.
+In the repository you want to use the skills in, add this to your README or some other document with setup instructions.
 
 ```markdown
 ## ⚙️ Setup
