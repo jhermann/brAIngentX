@@ -8,11 +8,12 @@ license: Apache 2.0
 
 **Contents**
 
-- [🚀 Project Overview](#-project-overview)
-- [📋 What Skills are Supported?](#-what-skills-are-supported)
-- [⚙️ How Does it Work?](#️-how-does-it-work)
+- [👀 Project Overview](#-project-overview)
+- [📋 What Skills Are Supported?](#-what-skills-are-supported)
+- [🚀 How Do I Use This?](#-how-do-i-use-this)
+- [⚙️ How Does It Work?](#️-how-does-it-work)
 
-## 🚀 Project Overview
+## 👀 Project Overview
 *brAIngentX* is focused on **Agentic AI**, where autonomous scripts manage tasks
 like real-time data analysis, automated trading, or code repository maintenance
 without constant human intervention.
@@ -25,7 +26,7 @@ purposeful selection instead of one size fits all.
 This is designed for and tested with *VS Code* and *GitHub Copilot*, but that does not
 mean it won't work with other common IDEs and models.
 
-## 📋 What Skills are Supported?
+## 📋 What Skills Are Supported?
 
 The following skills are included in this repository. You can enable or use them as needed, on a per-project basis:
 
@@ -36,7 +37,20 @@ The following skills are included in this repository. You can enable or use them
 - 🏛️ **secure-development**
 - 🚧 An expert helping you to create and maintain an `AGENTS.md` file.
 
-## ⚙️ How Does it Work?
+## 🚀 How Do I Use This?
+
+To the repository you want to use the skills in, add this to your README or some other document with setup instructions.
+
+```markdown
+## ⚙️ Setup
+
+1. Clone the [brAIngentX](https://github.com/jhermann/brAIngentX#readme) skills sharing repo, and call its `./install.sh` to symlink the `braingentx` tool into your local `bin` folder.
+2. Go back to this repo's workdir and call `braingentx install markdown-style`. Call `braingentx list` to show more skills you might want to activate.
+```
+
+Then follow those instructions.
+
+## ⚙️ How Does It Work?
 
 🚧 TODO
 
