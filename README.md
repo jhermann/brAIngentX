@@ -3,7 +3,8 @@ license: Apache 2.0
 ---
 # brAIngentX<!-- omit from toc -->
 
-> *Skills sharing for an agentic age.*
+> ![A futuristic armored head shot in a sleek metallic suit with glowing blue and purple highlights. Radiating lines surround the figure.](assets/brAIngentX-logo.png)<br/>
+>   *Skills sharing for an agentic age.*
 
 **Contents**
 
