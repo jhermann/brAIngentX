@@ -24,6 +24,7 @@ When (re-)writing Markdown content, strictly adhere to the following formatting 
 * **Consistency:** Be consistent in the style of headings throughout the document.
 * **Numbered Headings:** Numbered headings, if used, must be kept consistent and strictly increasing by one.
 * **Top-Most H1 Heading:** At the end of the top-most H1 heading line, add the text `<!-- omit from toc -->`, if not already there. This leaves out that top-level heading *from* the ToC, not the ToC itself.
+* **Title Case:** Capitalize the first letter of each major word in the heading, while keeping minor words (such as "and", "or", "the") in lowercase, unless they are the first or last word of the heading. Use [Cambridge Proofreading](https://proofreading.org/learning-center/what-is-title-case/) rules if you can access them.
 
 ## Lists
 * **List Styles:** Use `-` or `*` for unordered lists, and numbers followed by a period for ordered lists.
