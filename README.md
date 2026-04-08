@@ -44,9 +44,11 @@ In the repository you want to use the skills in, add this to your README or some
 ```markdown
 ## ⚙️ Setup
 
-1. Clone the [brAIngentX](https://github.com/jhermann/brAIngentX#readme) skills sharing repo,
+1. Clone the [brAIngentX](https://github.com/jhermann/brAIngentX#readme) skills sharing repo
+   into your `~/src` folder (or whatever folder you keep sources in),
    and call its `./install.sh` to symlink the `braingentx` tool into your local `bin` folder.
-2. Go back to this repo's workdir and call `braingentx install markdown-style`.
+2. Call `python3 -mpip install pick` to install the `pick` package, the only dependency the script has.
+3. Go back to this repo's workdir and call `braingentx install markdown-style`.
    Call `braingentx list` to show more skills you might want to activate.
 ```
 
