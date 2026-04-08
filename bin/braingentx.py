@@ -157,6 +157,37 @@ class BrainGentX:
         self.project_instructions_root = self.project_root / PROJECT_INSTRUCTIONS_DIR
         self.project_config_path = self._resolve_project_config_path()
 
+    def _ensure_gitignore_has_skills(self, skill_names: list[str]) -> None:
+        """Ensure .gitignore contains the installed skill/instruction paths, at most once each."""
+        gitignore_path = self.project_root / ".gitignore"
+        if not gitignore_path.exists():
+            lines = []
+        else:
+            with gitignore_path.open("r", encoding="utf-8") as f:
+                lines = f.readlines()
+        # Normalize lines for comparison
+        existing = set(line.strip() for line in lines if line.strip())
+        to_add = []
+        for name in skill_names:
+            # Check if this is an instruction by checking for the file in the master repo
+            instr_path_master = self.repo_root / ".github" / "instructions" / f"{name}.instructions.md"
+            if instr_path_master.exists():
+                instr_path = f".github/instructions/{name}.instructions.md"
+                if instr_path not in existing:
+                    to_add.append(instr_path)
+            else:
+                skill_path = f".agents/skills/{name}"
+                if skill_path not in existing:
+                    to_add.append(skill_path)
+        if to_add:
+            if self.dry_run:
+                log_info(f"[dry-run] Would add to .gitignore: {', '.join(to_add)}")
+            else:
+                with gitignore_path.open("a", encoding="utf-8") as f:
+                    for path in to_add:
+                        f.write(f"\n{path}\n")
+                log_info(f"Added to .gitignore: {', '.join(to_add)}")
+
     def _resolve_project_config_path(self) -> Path:
         return self.project_root / PROJECT_CONFIG_FILE
 
@@ -362,7 +393,21 @@ class BrainGentX:
             print(value)
         return 0
 
+    def _ensure_instructions_readme(self) -> None:
+        """Ensure .github/instructions/README.md exists in the project, copying from master repo if needed."""
+        src = self.repo_root / ".github" / "instructions" / "README.md"
+        dst = self.project_root / ".github" / "instructions" / "README.md"
+        if not dst.exists() and src.exists():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if self.dry_run:
+                log_info(f"[dry-run] Would copy {src} to {dst}")
+            else:
+                import shutil
+                shutil.copy2(src, dst)
+                log_info(f"ℹ️ Copied {src} to {dst}")
+
     def cmd_install(self, names: list[str], pick: bool) -> int:
+        self._ensure_instructions_readme()
         selected = self.resolve_install_names(names, pick=pick, action="install")
         if not selected:
             log_info("No skills selected.")
@@ -383,6 +428,8 @@ class BrainGentX:
             project_config.installed = sorted(set(project_config.installed).union([name]))
             self.save_project_config(project_config)
 
+        # Ensure .gitignore has the installed skill paths (after install)
+        self._ensure_gitignore_has_skills(list(self._installed_in_project()))
         return 0
 
     def cmd_uninstall(self, names: list[str], pick: bool) -> int:
@@ -404,6 +451,7 @@ class BrainGentX:
         return 0
 
     def cmd_restore(self) -> int:
+        self._ensure_instructions_readme()
         project_config = self.load_project_config()
         wanted = set(project_config.installed)
         available = self.available_skills()
@@ -418,6 +466,8 @@ class BrainGentX:
         for name in sorted(currently_installed - wanted):
             self._uninstall_skill(name)
 
+        # Ensure .gitignore has all wanted skill paths (after restore)
+        self._ensure_gitignore_has_skills(list(self._installed_in_project()))
         return 0
 
     def cmd_purge(self) -> int:
