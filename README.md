@@ -27,7 +27,6 @@ mean it won't work with other common IDEs and models.
 
 ## 📋 What Skills are Supported?
 
-
 The following skills are included in this repository. You can enable or use them as needed, on a per-project basis:
 
 - 🏛️ **markdown-style**: Markdown Style Standards
@@ -40,3 +39,5 @@ The following skills are included in this repository. You can enable or use them
 ## ⚙️ How Does it Work?
 
 🚧 TODO
+
+To install `uv` and `uvx`, use `mkvenv3 uv uv uv.build`.

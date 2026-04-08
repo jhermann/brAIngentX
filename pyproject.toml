@@ -1,0 +1,41 @@
+[project]
+name = "brAIngentX"
+version = "0.1.0"
+description = "Skills sharing for an agentic age."
+authors = [
+    { name = "Jürgen Hermann", email = "jh@web.de" }
+]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.10"
+
+[tool.uv]
+# uv-specific settings can be added here
+
+[tool.uv.extra-build-dependencies]
+braingentx = ["uv", "uv.build"]
+
+[tool.ruff]
+line-length = 110
+fix = true
+select = ["E", "F", "W", "I", "N", "D", "UP", "B", "A", "C4", "T20", "SIM", "Q"]
+ignore = []
+
+[tool.basedpyright]
+typeCheckingMode = "strict"
+reportMissingTypeStubs = true
+reportMissingImports = true
+reportMissingParameterType = true
+reportMissingTypeArgument = true
+reportUnknownMemberType = true
+reportUnknownParameterType = true
+reportUnknownVariableType = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["uv>=0.1.36"]
+build-backend = "uv.build"
