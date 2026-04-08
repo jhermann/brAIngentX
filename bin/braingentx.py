@@ -316,10 +316,12 @@ class BrainGentX:
                 return ""
             text = "".join(lines)
             # Try YAML frontmatter
+            heading_start = 0
             if text.startswith("---"):
                 end = text.find("---", 3)
                 if end != -1:
                     yaml_block = text[3:end]
+                    heading_start = end + 3  # skip past second ---
                     if yaml is not None:
                         try:
                             meta = yaml.safe_load(yaml_block)
@@ -328,8 +330,9 @@ class BrainGentX:
                                 return str(desc).strip()
                         except Exception:
                             pass
-            # Try Markdown H1
-            for line in lines:
+            # Only search for # heading after YAML frontmatter (after second ---)
+            after_yaml = text[heading_start:]
+            for line in after_yaml.splitlines():
                 m = re.match(r"# (.+)", line)
                 if m:
                     return m.group(1).strip()
