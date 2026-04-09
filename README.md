@@ -55,10 +55,13 @@ In the repository you want to use the skills in, add this to your README or some
 Then follow those instructions.
 
 > ![Screenshot of the braingentx list command in a dark terminal, showing available skills with icons, descriptions, and their enabled status.](assets/screenies/brx-list.png)<br />
-> *`braingentx` list command showing available skills with icons, descriptions, and their enabled status.*
->
+
+Example 1: *`braingentx` list command showing available skills with icons, descriptions, and their enabled status.*
+
 > ![Screenshot of the braingentx pick interface, showing a list of available skills to select. The interface uses a dark terminal theme, with highlighted selection and clear skill descriptions.](assets/screenies/brx-pick.png)<br />
-> *`braingentx` pick interface, showing a list of available and uninstalled skills to select for installation.*
+
+Example 2: *`braingentx` pick interface, showing a list of available and uninstalled skills to select for installation,*
+*after calling `braingentx install -p`.*
 
 ## ⚙️ How Does It Work?
 
