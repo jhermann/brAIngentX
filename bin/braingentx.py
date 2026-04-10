@@ -647,15 +647,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-n", "--dry-run", action="store_true", help="Show what would be done")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    install_parser = subparsers.add_parser("install", help="Install skills into the project")
+
+    # Add aliases: i=install, ls=list, s=show
+    install_parser = subparsers.add_parser("install", aliases=["i"], help="Install skills into the project")
     install_parser.add_argument("-p", "--pick", action="store_true", help="Interactively pick skills or instructions")
     install_parser.add_argument("skills", nargs="*", help="Names of skills to install")
 
-    subparsers.add_parser("list",
+    subparsers.add_parser("list", aliases=["l", "ls"],
         help="List available skills and instructions,"
              " and their installation status in the project")
 
-    show_parser = subparsers.add_parser("show", help="Show details for one skill")
+    show_parser = subparsers.add_parser("show", aliases=["s"], help="Show details for one skill")
     show_parser.add_argument("skill", help="Name of the skill")
 
     uninstall_parser = subparsers.add_parser("uninstall", help="Uninstall skills from the project")
@@ -687,21 +689,24 @@ def run(argv: list[str]) -> int:
 
     cli = BrainGentX(repo_root=repo_root, project_root=project_root, dry_run=args.dry_run)
 
-    if args.command == "install":
+
+    # Support aliases for subcommands
+    cmd = args.command
+    if cmd in ("install", "i"):
         return cli.cmd_install(args.skills, pick=args.pick)
-    elif args.command == "list":
+    elif cmd in ("list", "l", "ls"):
         return cli.cmd_list()
-    elif args.command == "show":
+    elif cmd in ("show", "s"):
         return cli.cmd_show(args.skill)
-    elif args.command == "uninstall":
+    elif cmd == "uninstall":
         return cli.cmd_uninstall(args.skills, pick=args.pick)
-    elif args.command == "restore":
+    elif cmd == "restore":
         return cli.cmd_restore()
-    elif args.command == "purge":
+    elif cmd == "purge":
         return cli.cmd_purge()
-    elif args.command == "mkcfg":
+    elif cmd == "mkcfg":
         return cli.cmd_mkcfg()
-    elif args.command == "info":
+    elif cmd == "info":
         return cli.cmd_info()
 
     parser.print_help()
